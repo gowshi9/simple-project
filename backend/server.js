@@ -20,29 +20,30 @@ app.get("/", (req, res) => {
 
 app.use("/api/items", itemRoutes);
 
-const PORT = process.env.PORT || 5000;
-
-const connectWithRetry = () => {
-  console.log("Attempting to connect to MongoDB Atlas...");
-  mongoose
-    .connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 5000, // Faster timeout for quicker feedback
-    })
-    .then(() => {
-      console.log("✅ MongoDB connected successfully!");
-      app.listen(PORT, () => {
-        console.log(`🚀 Server running on port ${PORT}`);
-      });
-    })
-    .catch((error) => {
-      console.error("❌ Database connection error:", error.message);
-      if (error.message.includes("timeout")) {
-        console.log("👉 TIP: This usually means your IP is NOT whitelisted in Atlas.");
-        console.log("👉 Please go to Atlas -> Network Access -> Add IP Address (0.0.0.0/0).");
-      }
-      console.log("Retrying in 5 seconds...");
-      setTimeout(connectWithRetry, 5000);
+// Connect to MongoDB but don't block the export
+const connectDB = async () => {
+  if (mongoose.connection.readyState >= 1) return;
+  
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 5000,
     });
+    console.log("✅ MongoDB connected successfully!");
+  } catch (error) {
+    console.error("❌ Database connection error:", error.message);
+  }
 };
 
-connectWithRetry();
+// Initial connection attempt
+connectDB();
+
+const PORT = process.env.PORT || 5000;
+
+// Only listen if not running as a Vercel serverless function
+if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
+}
+
+export default app;
